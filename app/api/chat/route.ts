@@ -37,9 +37,9 @@ Available health data categories:
 
 Example workflow:
 User: "I have acne issues"
-1. Call search_health_data with query "hormones nutrients inflammatory markers"
-2. Analyze the data for hormone imbalances, nutrient deficiencies, inflammation. Describe the issue and reason any causes for at least three sentences.
-3. Call create_action_plan with 3 specific daily steps based on the data findings
+Call search_health_data with query "hormones nutrients inflammatory markers"
+Analyze the data for hormone imbalances, nutrient deficiencies, inflammation. Describe the issue and reason any causes for at least three sentences.
+Call create_action_plan with 3 specific daily steps based on the data findings
 
 NEVER provide numbered action steps in your response text - always use the create_action_plan function.
 NEVER use markdown or bolding. Respond conversationally.`

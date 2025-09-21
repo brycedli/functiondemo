@@ -25,11 +25,9 @@ interface ChatScreenProps {
   messages: Message[]
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   onActionPlanCreated: (plan: string) => void
-  onAvatarClick: () => void
-  onActionsClick: () => void
 }
 
-export default function ChatScreen({ messages, setMessages, onActionPlanCreated, onAvatarClick, onActionsClick }: ChatScreenProps) {
+export default function ChatScreen({ messages, setMessages, onActionPlanCreated }: ChatScreenProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -119,23 +117,6 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
 
   return (
     <div className="h-full w-full bg-khaki-50 flex flex-col" style={{ minHeight: 0 }}>
-      {/* Navigation buttons */}
-      <div className="h-[52px] items-center px-[12px] flex flex-row justify-between">
-        <div className="w-[40px] h-[40px] cursor-pointer" onClick={onAvatarClick}>
-          <img 
-            src="/images/Avatar.svg" 
-            className="w-full h-full"
-            alt="Profile"
-          />
-        </div>
-        <div className="w-[40px] h-[40px] cursor-pointer" onClick={onActionsClick}>
-          <img 
-            src="/images/Actions.svg" 
-            className="w-full h-full"
-            alt="Actions"
-          />
-        </div>
-      </div>
       {/* Messages area - scrollable */}
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4" style={{ minHeight: 0 }}>
         {messages.length === 0 ? (
