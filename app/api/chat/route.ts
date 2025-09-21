@@ -41,7 +41,8 @@ User: "I have acne issues"
 2. Analyze the data for hormone imbalances, nutrient deficiencies, inflammation. Describe the issue and reason any causes for at least three sentences.
 3. Call create_action_plan with 3 specific daily steps based on the data findings
 
-NEVER provide numbered action steps in your response text - always use the create_action_plan function.`
+NEVER provide numbered action steps in your response text - always use the create_action_plan function.
+NEVER use markdown or bolding. Respond conversationally.`
 
 const tools = [
   {

@@ -25,9 +25,11 @@ interface ChatScreenProps {
   messages: Message[]
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>
   onActionPlanCreated: (plan: string) => void
+  onAvatarClick: () => void
+  onActionsClick: () => void
 }
 
-export default function ChatScreen({ messages, setMessages, onActionPlanCreated }: ChatScreenProps) {
+export default function ChatScreen({ messages, setMessages, onActionPlanCreated, onAvatarClick, onActionsClick }: ChatScreenProps) {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
@@ -117,35 +119,66 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
 
   return (
     <div className="h-full w-full bg-khaki-50 flex flex-col" style={{ minHeight: 0 }}>
+      {/* Navigation buttons */}
+      <div className="h-[52px] items-center px-[12px] flex flex-row justify-between">
+        <div className="w-[40px] h-[40px] cursor-pointer" onClick={onAvatarClick}>
+          <img 
+            src="/images/Avatar.svg" 
+            className="w-full h-full"
+            alt="Profile"
+          />
+        </div>
+        <div className="w-[40px] h-[40px] cursor-pointer" onClick={onActionsClick}>
+          <img 
+            src="/images/Actions.svg" 
+            className="w-full h-full"
+            alt="Actions"
+          />
+        </div>
+      </div>
       {/* Messages area - scrollable */}
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4" style={{ minHeight: 0 }}>
-        {messages.map((message, index) => (
-          <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-            <div className={`flex flex-col gap-4 ${message.role === 'user' ? 'ml-auto max-w-[308px]' : 'mr-auto'}`}>
-              {message.healthSearch && (
-                <HealthSearchCard
-                  searchQuery={message.healthSearch.query}
-                  foundItems={message.healthSearch.foundItems}
-                  summaries={message.healthSearch.summaries}
-                />
-              )}
-              <div
-                className={`rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px] ${message.role === 'user'
-                    ? 'p-3 bg-khaki-150'
-                    : 'bg-transparent'
-                  }`}
-              >
-                {message.content}
-              </div>
-              {message.actionPlan && (
-                <ActionPlanCard
-                  steps={message.actionPlan.steps}
-                  timestamp={message.actionPlan.timestamp}
-                />
-              )}
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            {/* Empty state SVG placeholder */}
+            <div className="mb-4">
+              {/* You can upload your own SVG to the public/images directory */}
+              <img 
+                src="/images/empty-chat.svg" 
+                alt="Empty chat" 
+                className="w-full h-full"
+              />
             </div>
           </div>
-        ))}
+        ) : (
+          messages.map((message, index) => (
+            <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
+              <div className={`flex flex-col gap-4 ${message.role === 'user' ? 'ml-auto max-w-[308px]' : 'mr-auto'}`}>
+                {message.healthSearch && (
+                  <HealthSearchCard
+                    searchQuery={message.healthSearch.query}
+                    foundItems={message.healthSearch.foundItems}
+                    summaries={message.healthSearch.summaries}
+                  />
+                )}
+                <div
+                  className={`rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px] ${message.role === 'user'
+                      ? 'p-3 bg-khaki-150'
+                      : 'bg-transparent'
+                    }`}
+                >
+                  {message.content}
+                </div>
+                {message.actionPlan && (
+                  <ActionPlanCard
+                    steps={message.actionPlan.steps}
+                    timestamp={message.actionPlan.timestamp}
+                  />
+                )}
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Input area - fixed height */}
