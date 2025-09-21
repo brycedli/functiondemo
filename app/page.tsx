@@ -30,27 +30,29 @@ export default function Home() {
   ]
 
   return (
-    <div className="h-screen w-screen bg-black flex flex-col">
-      {/* Navigation buttons */}
-      <div className="flex border-b border-gray-800">
-        {screens.map((screen, index) => (
-          <button
-            key={index}
-            onClick={() => setCurrentScreen(index)}
-            className={`flex-1 py-4 text-center font-medium ${
-              index === currentScreen 
-                ? 'text-white bg-gray-800' 
-                : 'text-gray-400 bg-black hover:bg-gray-900'
-            }`}
-          >
-            {screen.name}
-          </button>
-        ))}
-      </div>
-      
-      {/* Screen content */}
-      <div className="flex-1">
-        {screens[currentScreen].component}
+    <div className="h-screen w-screen bg-khaki-150 flex items-center justify-center">
+      <div className="h-[815px] w-[375px]  flex flex-col overflow-hidden">
+        {/* Navigation buttons */}
+        <div className="flex border-b border-gray-800 bg-khaki-100">
+          {screens.map((screen, index) => (
+            <button
+              key={index}
+              onClick={() => setCurrentScreen(index)}
+              className={`flex-1 py-4 text-center font-medium ${
+                index === currentScreen 
+                  ? 'text-white bg-gray-800' 
+                  : 'text-gray-400 bg-black hover:bg-gray-900'
+              }`}
+            >
+              {screen.name}
+            </button>
+          ))}
+        </div>
+        
+        {/* Screen content */}
+        <div className="flex-1 overflow-hidden">
+          {screens[currentScreen].component}
+        </div>
       </div>
     </div>
   )

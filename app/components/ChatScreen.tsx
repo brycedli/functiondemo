@@ -44,7 +44,7 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
         body: JSON.stringify({ message: originalInput })
       })
       const searchData = await searchResponse.json()
-      
+
       // Add search result message
       const searchMessage: Message = {
         role: 'assistant',
@@ -60,16 +60,16 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
       const analysisResponse = await fetch('/api/analyze-health', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: originalInput,
-          healthData: searchData.healthData 
+          healthData: searchData.healthData
         })
       })
       const analysisData = await analysisResponse.json()
-      
+
       // Update the message with analysis
-      setMessages(prev => prev.map((msg, index) => 
-        index === prev.length - 1 
+      setMessages(prev => prev.map((msg, index) =>
+        index === prev.length - 1
           ? { ...msg, content: analysisData.response }
           : msg
       ))
@@ -78,26 +78,26 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
       const actionResponse = await fetch('/api/create-action-plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           message: originalInput,
           healthData: searchData.healthData,
           analysis: analysisData.response
         })
       })
       const actionData = await actionResponse.json()
-      
+
       // Add action plan to the message
       if (actionData.actionPlan) {
         const steps = actionData.actionPlan.split('\n').filter((step: string) => step.trim())
-        setMessages(prev => prev.map((msg, index) => 
-          index === prev.length - 1 
-            ? { 
-                ...msg, 
-                actionPlan: {
-                  steps: steps,
-                  timestamp: new Date().toLocaleTimeString()
-                }
+        setMessages(prev => prev.map((msg, index) =>
+          index === prev.length - 1
+            ? {
+              ...msg,
+              actionPlan: {
+                steps: steps,
+                timestamp: new Date().toLocaleTimeString()
               }
+            }
             : msg
         ))
         onActionPlanCreated(actionData.actionPlan)
@@ -112,43 +112,39 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
   }
 
   return (
-    <div className="h-full w-full bg-black flex flex-col">
-      <div className="p-4 border-b border-gray-800">
-        <h1 className="text-white text-2xl font-bold">AI Health Chat</h1>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+    <div className="h-full w-full bg-khaki-100 flex flex-col" style={{ minHeight: 0 }}>
+      {/* Messages area - scrollable */}
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4" style={{ minHeight: 0 }}>
         {messages.map((message, index) => (
           <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
-            <div className={`max-w-md ${message.role === 'user' ? 'ml-auto' : 'mr-auto'}`}>
+            <div className={`flex flex-col gap-4 ${message.role === 'user' ? 'ml-auto max-w-[308px]' : 'mr-auto'}`}>
               {message.healthSearch && (
-                <HealthSearchCard 
+                <HealthSearchCard
                   searchQuery={message.healthSearch.query}
                   foundItems={message.healthSearch.foundItems}
                 />
               )}
               <div
-                className={`p-3 rounded-lg ${
-                  message.role === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-800 text-white'
-                }`}
+                className={`rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px] ${message.role === 'user'
+                    ? 'p-3 bg-khaki-150'
+                    : 'bg-transparent'
+                  }`}
               >
                 {message.content}
               </div>
               {message.actionPlan && (
-                <ActionPlanCard 
-                  steps={message.actionPlan.steps} 
+                <ActionPlanCard
+                  steps={message.actionPlan.steps}
                   timestamp={message.actionPlan.timestamp}
                 />
               )}
             </div>
           </div>
         ))}
-        
       </div>
-      
-      <div className="p-4 border-t border-gray-800">
+
+      {/* Input area - fixed height */}
+      <div className="p-4 border-t border-gray-800 flex-shrink-0">
         <div className="flex space-x-2">
           <input
             type="text"
