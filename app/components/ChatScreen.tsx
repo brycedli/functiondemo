@@ -8,7 +8,10 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   actionPlan?: {
-    steps: string[]
+    steps: {
+      text: string;
+      icon?: string;
+    }[]
     timestamp: string
   }
   healthSearch?: {
@@ -89,14 +92,13 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
       const actionData = await actionResponse.json()
 
       // Add action plan to the message
-      if (actionData.actionPlan) {
-        const steps = actionData.actionPlan.split('\n').filter((step: string) => step.trim())
+      if (actionData.actionPlan && actionData.steps) {
         setMessages(prev => prev.map((msg, index) =>
           index === prev.length - 1
             ? {
               ...msg,
               actionPlan: {
-                steps: steps,
+                steps: actionData.steps,
                 timestamp: new Date().toLocaleTimeString()
               }
             }
@@ -114,7 +116,7 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
   }
 
   return (
-    <div className="h-full w-full bg-khaki-100 flex flex-col" style={{ minHeight: 0 }}>
+    <div className="h-full w-full bg-khaki-50 flex flex-col" style={{ minHeight: 0 }}>
       {/* Messages area - scrollable */}
       <div className="flex-1 flex flex-col overflow-y-auto p-4 gap-4" style={{ minHeight: 0 }}>
         {messages.map((message, index) => (
@@ -147,25 +149,48 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
       </div>
 
       {/* Input area - fixed height */}
-      <div className="p-4 border-t border-gray-800 flex-shrink-0">
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Ask about your health..."
-            className="flex-1 bg-gray-800 text-white p-3 rounded-lg border-none outline-none"
-          />
-          <button
-            onClick={sendMessage}
-            disabled={isLoading}
-            className="bg-blue-600 text-white px-4 py-3 rounded-lg disabled:opacity-50 flex items-center justify-center"
-            aria-label="Send message"
-          >
-            <i className="fas fa-paper-plane mr-2"></i>
-            Send
-          </button>
+      <div className="pb-2 px-2 flex-shrink-0">
+        <div className="self-stretch pl-1 pr-1.5 py-1 bg-khaki-100 rounded-2xl shadow-[0px_-1px_2px_0px_rgba(84,60,12,0.03)] shadow-[0px_-3px_4px_0px_rgba(84,60,12,0.03)] shadow-[0px_-8px_5px_0px_rgba(84,60,12,0.02)] outline outline-1 outline-offset-[-1px] outline-khaki-150 inline-flex flex-col justify-start items-start gap-2 overflow-hidden w-full">
+          <div className="self-stretch flex-1 px-1 flex flex-col justify-center items-start gap-1 w-full">
+            <div className="self-stretch pl-1 pt-2 pb-1 inline-flex justify-start items-center">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                placeholder="Ask anything..."
+                className="flex-1 bg-transparent text-gray-800 border-none outline-none text-base font-normal leading-relaxed"
+              />
+            </div>
+            <div className="self-stretch py-0.5 inline-flex justify-between items-center">
+              <div className="flex justify-start items-center gap-2">
+                <div className="w-8 h-8 bg-khaki-150 rounded-[999px] inline-flex flex-col justify-center items-center gap-2">
+                  <div className="w-6 h-6 text-center justify-center text-gray-800 text-base">
+                    <i className="fas fa-plus"></i>
+                  </div>
+                </div>
+                <div className="w-8 h-8 bg-khaki-150 rounded-[999px] inline-flex flex-col justify-center items-center gap-2">
+                  <div className="w-6 h-6 text-center justify-center text-gray-800 text-base">
+                    <i className="fas fa-ellipsis"></i>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={sendMessage}
+                disabled={isLoading}
+                className={`w-8 h-8 pb-px ${input.trim() ? 'bg-orange-500' : 'bg-gray-800'} rounded-[100px] inline-flex flex-col justify-center items-center gap-2 disabled:opacity-50`}
+                aria-label="Send message"
+              >
+                <div className="w-5 h-5 text-center justify-center text-khaki-50 text-base">
+                  {input.trim() ? (
+                    <i className="fas fa-paper-plane"></i>
+                  ) : (
+                    <i className="fas fa-microphone"></i>
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

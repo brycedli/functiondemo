@@ -9,7 +9,10 @@ interface Message {
   role: 'user' | 'assistant'
   content: string
   actionPlan?: {
-    steps: string[]
+    steps: {
+      text: string;
+      icon?: string;
+    }[]
     timestamp: string
   }
   healthSearch?: {

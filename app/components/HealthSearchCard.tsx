@@ -8,13 +8,29 @@ export default function HealthSearchCard({ searchQuery, foundItems, summaries = 
   return (
     <div className="">
       <div className="flex items-center mb-2">
-        <i className="fa-solid fa-magnifying-glass mr-2 text-gray-600"></i>
+        <div className="flex mr-2">
+          <div className="w-7 h-7 relative bg-khaki-150 rounded-2xl outline outline-2 outline-khaki-50 overflow-hidden flex justify-center items-center">
+            <div className="text-gray-800 text-xs">
+              <i className="fas fa-stethoscope"></i>
+            </div>
+          </div>
+          <div className="w-7 h-7 ml-[-6px] relative bg-khaki-150 rounded-2xl outline outline-2 outline-khaki-50 overflow-hidden flex justify-center items-center">
+            <div className="text-gray-800 text-xs">
+              <i className="fas fa-chart-line"></i>
+            </div>
+          </div>
+          <div className="w-7 h-7 ml-[-6px] relative bg-khaki-150 rounded-2xl outline outline-2 outline-khaki-50 overflow-hidden flex justify-center items-center">
+            <div className="text-gray-800 text-xs">
+              <i className="fas fa-vials"></i>
+            </div>
+          </div>
+        </div>
         <span className="text-[18px] font-semibold text-gray-850">Searched your health data</span>
       </div>
       
       {summaries && summaries.length > 0 ? (
-        <div className="pl-[6px] flex flex-row gap-[14px]">
-          <div className="w-2 self-stretch bg-khaki-150 rounded-sm"></div>
+        <div className="pl-[10px] flex flex-row gap-[12px]">
+          <div className="w-3 self-stretch bg-khaki-150 rounded-sm"></div>
           <div className="space-y-2 text-gray-800">
             {summaries.map((summary, index) => (
               <div key={index} className="flex items-start">

@@ -13,21 +13,41 @@ Your action plan should:
 3. Be realistic for daily implementation
 4. Address the user's specific concern
 
-You must use the create_action_plan function to provide the steps. Do not number the steps in the function - just provide clean step descriptions.`
+For each step, you must choose an appropriate icon from this list:
+- exclamation-triangle (for warnings or important notices)
+- bowl-food (for food-related recommendations)
+- pills (for supplements or medication)
+- vials (for lab testing or medical procedures)
+
+You must use the create_action_plan function to provide the steps. Do not number the steps in the function - just provide clean step descriptions with appropriate icons.`
 
 const tools = [
   {
     type: "function" as const,
     function: {
       name: "create_action_plan",
-      description: "Create a 3-step daily action plan for the user. Do not number the steps.",
+      description: "Create a 3-step daily action plan for the user with appropriate icons.",
       parameters: {
         type: "object",
         properties: {
           steps: {
             type: "array",
-            items: { type: "string" },
-            description: "Three daily action steps without numbers"
+            items: {
+              type: "object",
+              properties: {
+                text: {
+                  type: "string",
+                  description: "The action step text"
+                },
+                icon: {
+                  type: "string",
+                  enum: ["exclamation-triangle", "bowl-food", "pills", "vials"],
+                  description: "Icon to display with this step"
+                }
+              },
+              required: ["text", "icon"]
+            },
+            description: "Three daily action steps with icons"
           }
         },
         required: ["steps"]
@@ -62,12 +82,15 @@ export async function POST(request: NextRequest) {
     }
 
     const planArgs = JSON.parse(toolCall.function.arguments)
-    const actionPlan = planArgs.steps.map((step: string, index: number) => 
-      `${index + 1}. ${step}`
+    
+    // Format the action plan as a numbered list for display purposes
+    const actionPlan = planArgs.steps.map((step: { text: string, icon: string }, index: number) => 
+      `${index + 1}. ${step.text}`
     ).join('\n')
 
     return NextResponse.json({
-      actionPlan: actionPlan
+      actionPlan: actionPlan,
+      steps: planArgs.steps
     })
 
   } catch (error) {
