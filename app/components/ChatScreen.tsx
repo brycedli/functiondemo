@@ -162,9 +162,38 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
         )}
       </div>
 
+      {/* Suggestion chips */}
+      <div className="px-2 pb-2 flex-shrink-0">
+        <div className="self-stretch px-2 inline-flex justify-start items-center gap-2 ">
+          {[
+            { title: 'Explain my', subtitle: 'latest lab results' },
+            { title: 'Optimize my', subtitle: 'nutrition and meals' },
+            { title: 'Create a', subtitle: 'cardiovascular report' }
+          ].map((suggestion, index) => (
+            <div 
+              key={index}
+              onClick={() => {
+                const message = `${suggestion.title} ${suggestion.subtitle}`
+                setInput(message)
+                // Auto-send the message
+                setTimeout(() => {
+                  if (!isLoading) {
+                    sendMessage()
+                  }
+                }, 100)
+              }}
+              className="px-3 py-2 bg-khaki-50 rounded-xl outline outline-1 outline-offset-[-1px] outline-khaki-150 inline-flex flex-col justify-center items-start cursor-pointer hover:bg-khaki-100 transition-colors flex-shrink-0"
+            >
+              <div className="self-stretch justify-start text-gray-800 text-sm font-semibold leading-snug">{suggestion.title}</div>
+              <div className="self-stretch justify-start text-gray-800 text-sm font-normal leading-snug">{suggestion.subtitle}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Input area - fixed height */}
       <div className="pb-2 px-2 flex-shrink-0">
-        <div className="self-stretch pl-1 pr-1.5 py-1 bg-khaki-100 rounded-2xl shadow-[0px_-1px_2px_0px_rgba(84,60,12,0.03)] shadow-[0px_-3px_4px_0px_rgba(84,60,12,0.03)] shadow-[0px_-8px_5px_0px_rgba(84,60,12,0.02)] outline outline-1 outline-offset-[-1px] outline-khaki-150 inline-flex flex-col justify-start items-start gap-2 overflow-hidden w-full">
+        <div className="self-stretch pl-1 pr-1.5 py-1 bg-khaki-100 rounded-2xl  outline outline-1 outline-offset-[-1px] outline-khaki-150 inline-flex flex-col justify-start items-start gap-2 overflow-hidden w-full">
           <div className="self-stretch flex-1 px-1 flex flex-col justify-center items-start gap-1 w-full">
             <div className="self-stretch pl-1 pt-2 pb-1 inline-flex justify-start items-center">
               <input
