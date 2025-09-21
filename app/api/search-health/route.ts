@@ -26,6 +26,20 @@ Available categories:
 
 Return a search query that includes relevant category names and biomarkers.`
 
+const SUMMARY_PROMPT = `You are a health data interpreter. Your job is to provide concise, insightful summaries of health data findings.
+
+For each health category, provide a brief summary that includes:
+1. Whether values are within normal range or out of range
+2. The potential health implications of these findings
+3. Any notable patterns or concerns
+
+Keep each summary as short as possible (<1 sentence). Use plain language that a patient can understand. Mention specific biomarkers only when relevant.
+
+Examples:
+- "Your bone health is significantly out of range, possibly indicating early osteopenia."
+- "Your blood markers are within normal range, suggesting healthy red blood cell function."
+- "Your vitamin D is below optimal levels, which may affect immune function and mood."`
+
 const tools = [
   {
     type: "function" as const,
@@ -90,9 +104,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate health data summaries using LLM
+    let healthSummaries: string[] = []
+    if (healthData.data && Object.keys(healthData.data).length > 0) {
+      // Format health data for the LLM
+      const healthDataFormatted = Object.entries(healthData.data).map(([category, data]) => {
+        const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+        return `${categoryName}:\n${JSON.stringify(data, null, 2)}`
+      }).join('\n\n')
+
+      // Get summaries from OpenAI
+      const summaryCompletion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          { role: "system", content: SUMMARY_PROMPT },
+          { role: "user", content: `Based on the following health data, provide concise summaries for each category:\n\n${healthDataFormatted}` }
+        ],
+        temperature: 0.3,
+      })
+
+      const summaryContent = summaryCompletion.choices[0].message.content
+      if (summaryContent) {
+        // Extract individual summaries (one per line)
+        healthSummaries = summaryContent
+          .split('\n')
+          .filter(line => line.trim().length > 0)
+          .map(line => line.replace(/^- /, '')) // Remove leading bullet points if present
+      }
+    }
+
     return NextResponse.json({
       query: searchQuery,
       foundItems: foundItems,
+      healthSummaries: healthSummaries,
       healthData: healthData
     })
 

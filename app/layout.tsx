@@ -19,6 +19,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
+      <head>
+        <script src="https://kit.fontawesome.com/5f19e7c78d.js" crossOrigin="anonymous"></script>
+      </head>
       <body className="font-inter">{children}</body>
     </html>
   )

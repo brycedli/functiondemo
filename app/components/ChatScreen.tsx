@@ -14,6 +14,7 @@ interface Message {
   healthSearch?: {
     query: string
     foundItems: string[]
+    summaries?: string[]
   }
 }
 
@@ -48,10 +49,11 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
       // Add search result message
       const searchMessage: Message = {
         role: 'assistant',
-        content: 'Searching your health data...',
+        content: '',
         healthSearch: {
           query: searchData.query,
-          foundItems: searchData.foundItems
+          foundItems: searchData.foundItems,
+          summaries: searchData.healthSummaries || []
         }
       }
       setMessages(prev => [...prev, searchMessage])
@@ -122,6 +124,7 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
                 <HealthSearchCard
                   searchQuery={message.healthSearch.query}
                   foundItems={message.healthSearch.foundItems}
+                  summaries={message.healthSearch.summaries}
                 />
               )}
               <div
@@ -157,8 +160,10 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated 
           <button
             onClick={sendMessage}
             disabled={isLoading}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg disabled:opacity-50"
+            className="bg-blue-600 text-white px-4 py-3 rounded-lg disabled:opacity-50 flex items-center justify-center"
+            aria-label="Send message"
           >
+            <i className="fas fa-paper-plane mr-2"></i>
             Send
           </button>
         </div>

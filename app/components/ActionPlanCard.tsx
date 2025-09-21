@@ -8,7 +8,7 @@ export default function ActionPlanCard({ steps, timestamp }: ActionPlanCardProps
     <div className="bg-gradient-to-r from-blue-900 to-purple-900 rounded-lg p-4 mt-3 border border-blue-700">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-white font-semibold text-sm flex items-center">
-          <span className="mr-2">📋</span>
+          <span className="mr-2"><i className="fas fa-clipboard-list"></i></span>
           Action Plan
         </h3>
         {timestamp && (
@@ -31,10 +31,12 @@ export default function ActionPlanCard({ steps, timestamp }: ActionPlanCardProps
       
       <div className="mt-4 pt-3 border-t border-blue-800">
         <div className="flex items-center justify-between">
-          <span className="text-blue-300 text-xs">
-            💡 Personalized based on your health data
+          <span className="text-blue-300 text-xs flex items-center">
+            <i className="fas fa-lightbulb mr-1"></i>
+            Personalized based on your health data
           </span>
-          <button className="text-blue-400 hover:text-blue-300 text-xs underline">
+          <button className="text-blue-400 hover:text-blue-300 text-xs flex items-center">
+            <i className="fas fa-save mr-1"></i>
             Save to Actions
           </button>
         </div>

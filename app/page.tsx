@@ -15,6 +15,7 @@ interface Message {
   healthSearch?: {
     query: string
     foundItems: string[]
+    summaries?: string[]
   }
 }
 
