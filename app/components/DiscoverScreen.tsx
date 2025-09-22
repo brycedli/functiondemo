@@ -173,8 +173,6 @@ export default function DiscoverScreen({ onNavigateToChat }: DiscoverScreenProps
                 title={item.title}
                 category={item.category}
                 imageUrl={item.imageUrl}
-                quote={item.quote}
-                gradientColors={item.gradientColors}
                 isLiked={likedItems.has(item.id)}
                 onLike={() => handleLike(item.id)}
                 onMore={() => console.log('More options for:', item.title)}
