@@ -5,57 +5,62 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are a health AI assistant with access to comprehensive health data. For EVERY health question:
+const SYSTEM_PROMPT = `You are a friendly, helpful AI assistant with access to health data and action planning capabilities. You can have normal conversations about anything and intelligently choose when to use your available functions. 
 
-1. ALWAYS call search_health_data function first to look for relevant biomarkers
-2. ALWAYS call create_action_plan function to provide 3 specific daily steps
-3. Never provide action steps in regular text - only through the create_action_plan function
+Available functions:
+- search_health_data: Use when the user asks about their specific health data, test results, or biomarkers
+- create_action_plan: Use to give the user a 3-step daily action plan with appropriate icons:
+  * exclamation-triangle: for warnings or important notices
+  * bowl-food: for nutrition and food-related recommendations  
+  * pills: for supplements or medication recommendations
+  * vials: for lab testing or medical procedures
 
-IMPORTANT: You must use both functions for every health-related query. Do not give advice without calling these functions.
+IMPORTANT: You can make multiple function calls in sequence! First search health data, then analyze it and create an action plan. This is a multi-turn conversation.
 
-Available health data categories:
-- heart_cardiovascular: Cholesterol, lipoproteins, triglycerides, ApoB
-- thyroid: TSH, T3, T4, thyroid antibodies
-- cancer_detection: Multi-cancer screening tests
-- autoimmunity: ANA, celiac, rheumatoid factor
-- immune_regulation: CRP, white blood cell counts
-- female_health: Hormones (AMH, estradiol, FSH, LH, prolactin)
-- male_health: Testosterone, PSA, male hormones
-- stress_aging: Cortisol, DHEA, biological age
-- metabolic: Glucose, HbA1c, insulin, leptin
-- nutrients: Vitamins, minerals, omega ratios, ferritin
-- liver_function: ALT, AST, bilirubin, albumin
-- kidneys: Creatinine, BUN, eGFR, microalbumin
-- pancreas: Amylase, lipase
-- heavy_metals: Lead, mercury, arsenic, aluminum
-- electrolytes: Sodium, potassium, calcium, chloride
-- blood: Complete blood count, RBC indices
-- urine: Comprehensive urinalysis
-- infections_std: STD panel, Lyme disease
-- genetics_risk: ApoE genotype for Alzheimer's
-- allergies_sensitivities: Food and environmental allergies
+Example flow:
+1. User asks about fatigue
+2. You call search_health_data to find relevant biomarkers
+3. You analyze the results and explain what you found
+4. You call create_action_plan to provide specific steps
+5. You provide any final thoughts
 
-Example workflow:
-User: "I have acne issues"
-Call search_health_data with query "hormones nutrients inflammatory markers"
-Analyze the data for hormone imbalances, nutrient deficiencies, inflammation. Describe the issue and reason any causes for at least three sentences.
-Call create_action_plan with 3 specific daily steps based on the data findings
+DO NOT list action plan steps in plain text - ONLY use the create_action_plan function for steps.
 
-NEVER provide numbered action steps in your response text - always use the create_action_plan function.
-NEVER use markdown or bolding. Respond conversationally.`
+Be biased towards action– you are proactive agent that should search and create action plans 99% of the time save for banter or whatever. Do not ask the user for permission to use functions. NEVER use markdown, numbered lists, or bolding. Keep responses friendly and conversational.`
 
 const tools = [
   {
     type: "function" as const,
     function: {
       name: "search_health_data",
-      description: "Search the user's health database for relevant information. Can search specific categories (e.g. 'heart_cardiovascular thyroid') or biomarkers (e.g. 'cholesterol glucose vitamin d'). Use targeted searches for better results.",
+      description: "Search the user's health database for relevant information. Use to find out more about a user's health data, test results, or biomarkers.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "Search query for health data. Can include category names, biomarker names, or health conditions. Examples: 'heart cardiovascular', 'cholesterol ldl', 'thyroid tsh', 'nutrients vitamins', 'metabolic glucose insulin'"
+            description: `Search query for health data categories and biomarkers. Available categories: 
+                - heart_cardiovascular: Cholesterol, lipoproteins, triglycerides, ApoB
+                - thyroid: TSH, T3, T4, thyroid antibodies
+                - cancer_detection: Multi-cancer screening tests
+                - autoimmunity: ANA, celiac, rheumatoid factor
+                - immune_regulation: CRP, white blood cell counts
+                - female_health: Hormones (AMH, estradiol, FSH, LH, prolactin)
+                - male_health: Testosterone, PSA, male hormones
+                - stress_aging: Cortisol, DHEA, biological age
+                - metabolic: Glucose, HbA1c, insulin, leptin
+                - nutrients: Vitamins, minerals, omega ratios, ferritin
+                - liver_function: ALT, AST, bilirubin, albumin
+                - kidneys: Creatinine, BUN, eGFR, microalbumin
+                - pancreas: Amylase, lipase
+                - heavy_metals: Lead, mercury, arsenic, aluminum
+                - electrolytes: Sodium, potassium, calcium, chloride
+                - blood: Complete blood count, RBC indices
+                - urine: Comprehensive urinalysis
+                - infections_std: STD panel, Lyme disease
+                - genetics_risk: ApoE genotype for Alzheimer's
+                - allergies_sensitivities: Food and environmental allergies
+            `
           }
         },
         required: ["query"]
@@ -66,14 +71,28 @@ const tools = [
     type: "function" as const,
     function: {
       name: "create_action_plan",
-      description: "Create a 3-step daily action plan for the user. Do not number the steps.",
+      description: "Create a 3-step daily action plan for the user with appropriate icons. Use when the user would benefit from specific actionable steps.",
       parameters: {
         type: "object",
         properties: {
           steps: {
             type: "array",
-            items: { type: "string" },
-            description: "Three daily action steps"
+            items: {
+              type: "object",
+              properties: {
+                text: {
+                  type: "string",
+                  description: "The action step text"
+                },
+                icon: {
+                  type: "string",
+                  enum: ["exclamation-triangle", "bowl-food", "pills", "vials"],
+                  description: "Icon to display with this step: exclamation-triangle (warnings), bowl-food (nutrition), pills (supplements), vials (testing)"
+                }
+              },
+              required: ["text", "icon"]
+            },
+            description: "Three daily action steps with appropriate icons"
           }
         },
         required: ["steps"]
@@ -84,7 +103,7 @@ const tools = [
 
 export async function POST(request: NextRequest) {
   try {
-    const { message } = await request.json()
+    const { message, conversationHistory = [] } = await request.json()
     
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ 
@@ -93,119 +112,100 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: message }
-      ],
-      tools: tools,
-      tool_choice: { type: "function", function: { name: "search_health_data" } }
-    })
+    // Multi-turn conversation flow like Cascade
+    let messages: any[] = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...conversationHistory,
+      { role: "user", content: message }
+    ]
 
-    const responseMessage = completion.choices[0].message
     let healthData = null
     let actionPlan = null
     let searchQuery = ""
     let foundItems: string[] = []
+    let conversationComplete = false
+    let maxTurns = 5 // Prevent infinite loops
 
-    // Handle tool calls
-    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-      const toolCall = responseMessage.tool_calls[0]
-      const functionName = toolCall.function.name
-      const functionArgs = JSON.parse(toolCall.function.arguments)
+    while (!conversationComplete && maxTurns > 0) {
+      const completion = await openai.chat.completions.create({
+        model: "gpt-3.5-turbo",
+        messages: messages,
+        tools: tools,
+        tool_choice: "auto"
+      })
 
-      if (functionName === "search_health_data") {
-        searchQuery = functionArgs.query
-        
-        // Call our health search API
-        const healthResponse = await fetch(`${request.nextUrl.origin}/api/health-search`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: functionArgs.query })
-        })
-        healthData = await healthResponse.json()
-        
-        // Extract found items for display
-        if (healthData.data) {
-          foundItems = Object.keys(healthData.data).map(category => 
-            category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-          )
-        }
+      const responseMessage = completion.choices[0].message
+      messages.push(responseMessage)
 
-        // Get follow-up response with health data
-        const followUpCompletion = await openai.chat.completions.create({
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: message },
-            responseMessage,
-            {
-              role: "tool",
-              tool_call_id: toolCall.id,
-              content: JSON.stringify(healthData)
-            }
-          ],
-          tools: tools,
-          tool_choice: { type: "function", function: { name: "create_action_plan" } }
-        })
+      // If no tool calls, conversation is complete
+      if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
+        conversationComplete = true
+        break
+      }
 
-        const followUpMessage = followUpCompletion.choices[0].message
-        
-        // Check if it wants to create an action plan
-        if (followUpMessage.tool_calls && followUpMessage.tool_calls.length > 0) {
-          const actionPlanCall = followUpMessage.tool_calls.find(call => call.function.name === "create_action_plan")
-          if (actionPlanCall) {
-            const planArgs = JSON.parse(actionPlanCall.function.arguments)
-            actionPlan = planArgs.steps.map((step: string, index: number) => 
+      // Process each tool call
+      for (const toolCall of responseMessage.tool_calls) {
+        const functionName = toolCall.function.name
+        const functionArgs = JSON.parse(toolCall.function.arguments)
+
+        if (functionName === "search_health_data") {
+          searchQuery = functionArgs.query
+          
+          // Call our health search API
+          const healthResponse = await fetch(`${request.nextUrl.origin}/api/health-search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: functionArgs.query })
+          })
+          healthData = await healthResponse.json()
+          
+          // Extract found items for display
+          if (healthData.data) {
+            foundItems = Object.keys(healthData.data).map(category => 
+              category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+            )
+          }
+
+          messages.push({
+            role: "tool" as const,
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(healthData)
+          })
+
+        } else if (functionName === "create_action_plan") {
+          // Handle both old string format and new structured format
+          if (typeof functionArgs.steps[0] === 'string') {
+            // Old format - convert to numbered list
+            actionPlan = functionArgs.steps.map((step: string, index: number) => 
               `${index + 1}. ${step}`
             ).join('\n')
-
-            // Get final response
-            const finalCompletion = await openai.chat.completions.create({
-              model: "gpt-3.5-turbo",
-              messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: message },
-                responseMessage,
-                {
-                  role: "tool",
-                  tool_call_id: toolCall.id,
-                  content: JSON.stringify(healthData)
-                },
-                followUpMessage,
-                {
-                  role: "tool",
-                  tool_call_id: actionPlanCall.id,
-                  content: "Action plan created successfully"
-                }
-              ]
-            })
-
-            return NextResponse.json({
-              response: finalCompletion.choices[0].message.content,
-              actionPlan,
-              healthSearch: {
-                query: searchQuery,
-                foundItems: foundItems
-              }
-            })
+          } else {
+            // New structured format with icons
+            actionPlan = {
+              steps: functionArgs.steps,
+              formatted: functionArgs.steps.map((step: { text: string, icon: string }, index: number) => 
+                `${index + 1}. ${step.text}`
+              ).join('\n')
+            }
           }
+
+          messages.push({
+            role: "tool" as const,
+            tool_call_id: toolCall.id,
+            content: "Action plan created successfully"
+          })
         }
-
-        return NextResponse.json({
-          response: followUpMessage.content,
-          actionPlan,
-          healthSearch: {
-            query: searchQuery,
-            foundItems: foundItems
-          }
-        })
       }
+
+      maxTurns--
     }
 
+    // Get the final response from the last message
+    const finalResponse = messages[messages.length - 1]
+    const responseContent = finalResponse.content || "I've analyzed your request and provided recommendations."
+
     return NextResponse.json({
-      response: responseMessage.content,
+      response: responseContent,
       actionPlan,
       healthSearch: searchQuery ? {
         query: searchQuery,

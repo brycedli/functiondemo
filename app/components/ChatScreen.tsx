@@ -43,70 +43,55 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
     setIsLoading(true)
 
     try {
-      // Step 1: Search health data
-      const searchResponse = await fetch('/api/search-health', {
+      // Prepare conversation history for the API
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }))
+
+      // Use single agentic chat API that can intelligently choose functions
+      const chatResponse = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: originalInput })
+        body: JSON.stringify({ 
+          message: originalInput,
+          conversationHistory: conversationHistory
+        })
       })
-      const searchData = await searchResponse.json()
+      const chatData = await chatResponse.json()
 
-      // Add search result message
-      const searchMessage: Message = {
+      // Create the assistant message
+      const assistantMessage: Message = {
         role: 'assistant',
-        content: '',
-        healthSearch: {
-          query: searchData.query,
-          foundItems: searchData.foundItems,
-          summaries: searchData.healthSummaries || []
-        }
+        content: chatData.response,
+        ...(chatData.healthSearch && {
+          healthSearch: {
+            query: chatData.healthSearch.query,
+            foundItems: chatData.healthSearch.foundItems,
+            summaries: [] // We can add summaries later if needed
+          }
+        }),
+        ...(chatData.actionPlan && {
+          actionPlan: {
+            steps: typeof chatData.actionPlan === 'string' 
+              ? chatData.actionPlan.split('\n').map((step: string) => ({
+                  text: step.replace(/^\d+\.\s*/, ''), // Remove numbering
+                  icon: '✓'
+                }))
+              : chatData.actionPlan.steps || chatData.actionPlan.split('\n').map((step: string) => ({
+                  text: step.replace(/^\d+\.\s*/, ''),
+                  icon: '✓'
+                })),
+            timestamp: new Date().toLocaleTimeString()
+          }
+        })
       }
-      setMessages(prev => [...prev, searchMessage])
 
-      // Step 2: Get analysis
-      const analysisResponse = await fetch('/api/analyze-health', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: originalInput,
-          healthData: searchData.healthData
-        })
-      })
-      const analysisData = await analysisResponse.json()
+      setMessages(prev => [...prev, assistantMessage])
 
-      // Update the message with analysis
-      setMessages(prev => prev.map((msg, index) =>
-        index === prev.length - 1
-          ? { ...msg, content: analysisData.response }
-          : msg
-      ))
-
-      // Step 3: Create action plan
-      const actionResponse = await fetch('/api/create-action-plan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: originalInput,
-          healthData: searchData.healthData,
-          analysis: analysisData.response
-        })
-      })
-      const actionData = await actionResponse.json()
-
-      // Add action plan to the message
-      if (actionData.actionPlan && actionData.steps) {
-        setMessages(prev => prev.map((msg, index) =>
-          index === prev.length - 1
-            ? {
-              ...msg,
-              actionPlan: {
-                steps: actionData.steps,
-                timestamp: new Date().toLocaleTimeString()
-              }
-            }
-            : msg
-        ))
-        onActionPlanCreated(actionData.actionPlan)
+      // Trigger action plan callback if one was created
+      if (chatData.actionPlan) {
+        onActionPlanCreated(chatData.actionPlan)
       }
 
     } catch (error) {
