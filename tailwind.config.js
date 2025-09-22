@@ -13,6 +13,7 @@ module.exports = {
     extend: {
       colors: {
         black: "#000000",
+        
         gray: {
           950: "#0E0E10",
           900: "#1C1D1F",
@@ -29,8 +30,8 @@ module.exports = {
           50: "#F5F6F5"
         },
         blue: {
-          500: "#38587D",
-
+          500: "#488AD5",
+          300: "#A3C1E2",
         },
         teal: {
           500: "#507173",
@@ -41,17 +42,26 @@ module.exports = {
           100: "#F4EFE6",
           50: "#FEF9EF"
         },
-        violet: {
+        purple: {
           500: "#786BC4",
+          300: "#BBB2D9",
         },
         green: {
           500: "#78BD8B",
         },
         red: {
           500: "#9C4D4E",
+          400: "#D18582",
+          300: "#DFA8A3",
         },
-        orange: {
+        orange:{
           500: "#C07858",
+          400: "#D19C82",
+          300: "#DFB8A3",
+          200: "#EACEBD",
+          150: "#F1DECF",
+          100: "#F7EADD",
+          50: "#FAF0E4"
         },
         yellow: {
           500: "#D3B35B",
