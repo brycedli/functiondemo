@@ -229,16 +229,49 @@ export default function HealthScreen({ onNavigateToChat }: HealthScreenProps) {
                   metric.chartData.map((height, barIndex) => (
                     <div key={barIndex} className="w-2 self-stretch rounded-md flex justify-between items-end">
                       <div
-                        className={`w-2 rounded-md ${metric.color === 'blue' ? 'bg-blue-300' :
-                            metric.color === 'purple' ? 'bg-purple-300' : 'bg-red-300'
-                          }`}
+                        className={`w-2 rounded-md ${barIndex === metric.chartData.length - 1 ? 
+                          // Most recent bar with color-500
+                          (metric.color === 'blue' ? 'bg-blue-500' :
+                           metric.color === 'purple' ? 'bg-purple-500' : 'bg-red-500')
+                          : 
+                          // Other bars with color-300
+                          (metric.color === 'blue' ? 'bg-blue-200' :
+                           metric.color === 'purple' ? 'bg-purple-300' : 'bg-red-200')
+                        }`}
                         style={{ height: `${height * 4}px` }}
                       ></div>
                     </div>
                   ))
                 ) : (
-                  // Line chart (simplified as positioned dots)
+                  // Line chart with connected dots
                   <div className="w-full h-8 relative">
+                    <svg className="absolute inset-0 w-full h-full">
+                      {/* Draw lines connecting the dots */}
+                      {metric.chartData.map((yPos, pointIndex) => {
+                        if (pointIndex === metric.chartData.length - 1) return null;
+                        const nextYPos = metric.chartData[pointIndex + 1];
+                        // Calculate actual pixel positions to match the dots
+                        const x1 = (pointIndex * 10) + 5; // Center of current dot (5px offset for dot center)
+                        const y1 = yPos + 5; // Center of current dot (5px offset for dot center)
+                        const x2 = ((pointIndex + 1) * 10) + 5; // Center of next dot
+                        const y2 = nextYPos + 5; // Center of next dot
+                        
+                        return (
+                          <line
+                            key={`line-${pointIndex}`}
+                            x1={x1}
+                            y1={y1}
+                            x2={x2}
+                            y2={y2}
+                            stroke={pointIndex === metric.chartData.length - 2 ? "#F7E6DD" : "#F7E6DD"}
+                            strokeWidth="3"
+                            className={pointIndex === metric.chartData.length - 2 ? "opacity-100" : "opacity-100"}
+                          />
+                        );
+                      })}
+                    </svg>
+                    
+                    {/* Draw the dots on top of the lines */}
                     {metric.chartData.map((yPos, pointIndex) => (
                       <div
                         key={pointIndex}
@@ -249,7 +282,9 @@ export default function HealthScreen({ onNavigateToChat }: HealthScreenProps) {
                         }}
                       >
                         <div className="w-2.5 h-2.5 bg-white rounded-full border border-khaki-50"></div>
-                        <div className="w-2 h-2 absolute left-[1px] top-[1px] bg-red-400 rounded-full"></div>
+                        <div 
+                          className={`w-2 h-2 absolute left-[1px] top-[1px] rounded-full ${pointIndex === metric.chartData.length - 1 ? 'bg-red-500' : 'bg-red-200'}`}
+                        ></div>
                       </div>
                     ))}
                   </div>

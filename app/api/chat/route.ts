@@ -5,7 +5,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are a friendly, helpful AI assistant with access to health data and action planning capabilities. You can have normal conversations about anything and intelligently choose when to use your available functions. 
+const SYSTEM_PROMPT = `You are a friendly, helpful AI assistant created by Function Health with access to health data and action planning capabilities. You can have normal conversations about anything and intelligently choose when to use your available functions. 
 
 Available functions:
 - search_health_data: Use when the user asks about their specific health data, test results, or biomarkers
@@ -43,7 +43,7 @@ const tools = [
         properties: {
           query: {
             type: "string",
-            description: `Search query for health data categories and biomarkers. Available categories: 
+            description: `Search query for health data categories and biomarkers. These have been tested from a user's annual comprehensive Function Health blood panel. Available categories: 
                 - heart_cardiovascular: Cholesterol, lipoproteins, triglycerides, ApoB
                 - thyroid: TSH, T3, T4, thyroid antibodies
                 - cancer_detection: Multi-cancer screening tests
