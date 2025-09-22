@@ -25,10 +25,10 @@ export default function HealthSearchCard({ searchQuery, foundItems, summaries = 
             </div>
           </div>
         </div>
-        <span className="text-[18px] font-semibold text-gray-850">Searched your health data</span>
+        <span className="text-[18px] font-semibold text-gray-850">Analyzing your data</span>
       </div>
       
-      {summaries && summaries.length > 0 ? (
+      {summaries && summaries.length > 0 && (
         <div className="pl-[10px] flex flex-row gap-[12px]">
           <div className="w-3 self-stretch bg-khaki-150 rounded-sm"></div>
           <div className="space-y-2 text-gray-800">
@@ -38,10 +38,6 @@ export default function HealthSearchCard({ searchQuery, foundItems, summaries = 
               </div>
             ))}
           </div>
-        </div>
-      ) : (
-        <div className="text-gray-600">
-          <span className="font-medium">Found:</span> {foundItems.length > 0 ? foundItems.join(', ') : 'No specific matches'}
         </div>
       )}
     </div>

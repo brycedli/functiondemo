@@ -17,14 +17,18 @@ Available functions:
 
 IMPORTANT: You can make multiple function calls in sequence! First search health data, then analyze it and create an action plan. This is a multi-turn conversation.
 
+CRITICAL RULE: When creating action plans, NEVER list the steps in your text response. Instead:
+- Say something like "Here's your personalized action plan:" or "I've created a plan for you:"
+- Then call the create_action_plan function
+- The function will display the steps with proper formatting and icons
+- Do NOT repeat the steps in text after calling the function
+
 Example flow:
 1. User asks about fatigue
-2. You call search_health_data to find relevant biomarkers
+2. You call search_health_data to find relevant biomarkers  
 3. You analyze the results and explain what you found
-4. You call create_action_plan to provide specific steps
-5. You provide any final thoughts
-
-DO NOT list action plan steps in plain text - ONLY use the create_action_plan function for steps.
+4. You say "Here's your action plan:" and call create_action_plan
+5. You provide any final thoughts (without repeating the steps)
 
 Be biased towards action– you are proactive agent that should search and create action plans 99% of the time save for banter or whatever. Do not ask the user for permission to use functions. NEVER use markdown, numbered lists, or bolding. Keep responses friendly and conversational.`
 
@@ -112,111 +116,197 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Multi-turn conversation flow like Cascade
-    let messages: any[] = [
-      { role: "system", content: SYSTEM_PROMPT },
-      ...conversationHistory,
-      { role: "user", content: message }
-    ]
+    // Create a streaming response
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Multi-turn conversation flow like Cascade
+          let messages: any[] = [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...conversationHistory,
+            { role: "user", content: message }
+          ]
 
-    let healthData = null
-    let actionPlan = null
-    let searchQuery = ""
-    let foundItems: string[] = []
-    let conversationComplete = false
-    let maxTurns = 5 // Prevent infinite loops
+          let healthData = null
+          let actionPlan = null
+          let searchQuery = ""
+          let foundItems: string[] = []
+          let conversationComplete = false
+          let maxTurns = 5 // Prevent infinite loops
 
-    while (!conversationComplete && maxTurns > 0) {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: messages,
-        tools: tools,
-        tool_choice: "auto"
-      })
+          while (!conversationComplete && maxTurns > 0) {
+            const completion = await openai.chat.completions.create({
+              model: "gpt-3.5-turbo",
+              messages: messages,
+              tools: tools,
+              tool_choice: "auto",
+              stream: true
+            })
 
-      const responseMessage = completion.choices[0].message
-      messages.push(responseMessage)
+            let responseMessage: any = { role: "assistant", content: "", tool_calls: [] }
+            let currentToolCall: any = null
+            let toolCallIndex = 0
 
-      // If no tool calls, conversation is complete
-      if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
-        conversationComplete = true
-        break
-      }
+            // Stream the response
+            for await (const chunk of completion) {
+              const delta = chunk.choices[0]?.delta
 
-      // Process each tool call
-      for (const toolCall of responseMessage.tool_calls) {
-        const functionName = toolCall.function.name
-        const functionArgs = JSON.parse(toolCall.function.arguments)
+              if (delta?.content) {
+                // Stream individual words/tokens
+                responseMessage.content += delta.content
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'text',
+                  content: delta.content
+                })}\n\n`))
+              }
 
-        if (functionName === "search_health_data") {
-          searchQuery = functionArgs.query
-          
-          // Call our health search API
-          const healthResponse = await fetch(`${request.nextUrl.origin}/api/health-search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: functionArgs.query })
-          })
-          healthData = await healthResponse.json()
-          
-          // Extract found items for display
-          if (healthData.data) {
-            foundItems = Object.keys(healthData.data).map(category => 
-              category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-            )
-          }
+              if (delta?.tool_calls) {
+                for (const toolCallDelta of delta.tool_calls) {
+                  if (toolCallDelta.index !== undefined) {
+                    toolCallIndex = toolCallDelta.index
+                  }
 
-          messages.push({
-            role: "tool" as const,
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(healthData)
-          })
+                  if (!responseMessage.tool_calls[toolCallIndex]) {
+                    responseMessage.tool_calls[toolCallIndex] = {
+                      id: toolCallDelta.id || '',
+                      type: 'function',
+                      function: { name: '', arguments: '' }
+                    }
+                  }
 
-        } else if (functionName === "create_action_plan") {
-          // Handle both old string format and new structured format
-          if (typeof functionArgs.steps[0] === 'string') {
-            // Old format - convert to numbered list
-            actionPlan = functionArgs.steps.map((step: string, index: number) => 
-              `${index + 1}. ${step}`
-            ).join('\n')
-          } else {
-            // New structured format with icons
-            actionPlan = {
-              steps: functionArgs.steps,
-              formatted: functionArgs.steps.map((step: { text: string, icon: string }, index: number) => 
-                `${index + 1}. ${step.text}`
-              ).join('\n')
+                  if (toolCallDelta.function?.name) {
+                    responseMessage.tool_calls[toolCallIndex].function.name = toolCallDelta.function.name
+                  }
+
+                  if (toolCallDelta.function?.arguments) {
+                    responseMessage.tool_calls[toolCallIndex].function.arguments += toolCallDelta.function.arguments
+                  }
+                }
+              }
             }
+
+            messages.push(responseMessage)
+
+            // If no tool calls, conversation is complete
+            if (!responseMessage.tool_calls || responseMessage.tool_calls.length === 0) {
+              conversationComplete = true
+              break
+            }
+
+            // Process each tool call and stream results
+            for (const toolCall of responseMessage.tool_calls) {
+              const functionName = toolCall.function.name
+              const functionArgs = JSON.parse(toolCall.function.arguments)
+
+              if (functionName === "search_health_data") {
+                searchQuery = functionArgs.query
+                
+                // Stream function call start
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'function_start',
+                  function: 'search_health_data',
+                  query: searchQuery
+                })}\n\n`))
+                
+                // Call our health search API
+                const healthResponse = await fetch(`${request.nextUrl.origin}/api/health-search`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ query: functionArgs.query })
+                })
+                healthData = await healthResponse.json()
+                
+                // Extract found items for display
+                if (healthData.data) {
+                  foundItems = Object.keys(healthData.data).map(category => 
+                    category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+                  )
+                }
+
+                // Stream health search results
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'health_search',
+                  query: searchQuery,
+                  foundItems: foundItems,
+                  data: healthData
+                })}\n\n`))
+
+                messages.push({
+                  role: "tool" as const,
+                  tool_call_id: toolCall.id,
+                  content: JSON.stringify(healthData)
+                })
+
+              } else if (functionName === "create_action_plan") {
+                // Stream function call start
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'function_start',
+                  function: 'create_action_plan'
+                })}\n\n`))
+
+                // Handle both old string format and new structured format
+                if (typeof functionArgs.steps[0] === 'string') {
+                  // Old format - convert to numbered list
+                  actionPlan = functionArgs.steps.map((step: string, index: number) => 
+                    `${index + 1}. ${step}`
+                  ).join('\n')
+                } else {
+                  // New structured format with icons
+                  actionPlan = {
+                    steps: functionArgs.steps,
+                    formatted: functionArgs.steps.map((step: { text: string, icon: string }, index: number) => 
+                      `${index + 1}. ${step.text}`
+                    ).join('\n')
+                  }
+                }
+
+                // Stream action plan results
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'action_plan',
+                  actionPlan: actionPlan
+                })}\n\n`))
+
+                messages.push({
+                  role: "tool" as const,
+                  tool_call_id: toolCall.id,
+                  content: "Action plan created successfully"
+                })
+              }
+            }
+
+            maxTurns--
           }
 
-          messages.push({
-            role: "tool" as const,
-            tool_call_id: toolCall.id,
-            content: "Action plan created successfully"
-          })
+          // Stream completion
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'complete'
+          })}\n\n`))
+
+        } catch (error) {
+          console.error('Streaming error:', error)
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: 'error',
+            message: 'Sorry, there was an error processing your request.'
+          })}\n\n`))
+        } finally {
+          controller.close()
         }
       }
+    })
 
-      maxTurns--
-    }
-
-    // Get the final response from the last message
-    const finalResponse = messages[messages.length - 1]
-    const responseContent = finalResponse.content || "I've analyzed your request and provided recommendations."
-
-    return NextResponse.json({
-      response: responseContent,
-      actionPlan,
-      healthSearch: searchQuery ? {
-        query: searchQuery,
-        foundItems: foundItems
-      } : null
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     })
 
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json({ 
-      response: "Sorry, there was an error processing your request. Make sure your OpenAI API key is configured.",
+      response: `Sorry, there was an error processing your request. ${error}`,
       actionPlan: null 
     }, { status: 500 })
   }

@@ -4,9 +4,27 @@ import { useState } from 'react'
 import ActionPlanCard from './ActionPlanCard'
 import HealthSearchCard from './HealthSearchCard'
 
+interface MessagePart {
+  type: 'text' | 'health_search' | 'action_plan'
+  content?: string
+  healthSearch?: {
+    query: string
+    foundItems: string[]
+    summaries?: string[]
+  }
+  actionPlan?: {
+    steps: {
+      text: string;
+      icon?: string;
+    }[]
+    timestamp: string
+  }
+}
+
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  parts?: MessagePart[]  // New: ordered parts for streaming
   actionPlan?: {
     steps: {
       text: string;
@@ -49,8 +67,15 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
         content: msg.content
       }))
 
-      // Use single agentic chat API that can intelligently choose functions
-      const chatResponse = await fetch('/api/chat', {
+      // Create initial assistant message for streaming
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: ''
+      }
+      setMessages(prev => [...prev, assistantMessage])
+
+      // Use streaming chat API
+      const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -58,40 +83,181 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
           conversationHistory: conversationHistory
         })
       })
-      const chatData = await chatResponse.json()
 
-      // Create the assistant message
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: chatData.response,
-        ...(chatData.healthSearch && {
-          healthSearch: {
-            query: chatData.healthSearch.query,
-            foundItems: chatData.healthSearch.foundItems,
-            summaries: [] // We can add summaries later if needed
-          }
-        }),
-        ...(chatData.actionPlan && {
-          actionPlan: {
-            steps: typeof chatData.actionPlan === 'string' 
-              ? chatData.actionPlan.split('\n').map((step: string) => ({
-                  text: step.replace(/^\d+\.\s*/, ''), // Remove numbering
-                  icon: '✓'
-                }))
-              : chatData.actionPlan.steps || chatData.actionPlan.split('\n').map((step: string) => ({
-                  text: step.replace(/^\d+\.\s*/, ''),
-                  icon: '✓'
-                })),
-            timestamp: new Date().toLocaleTimeString()
-          }
-        })
+      if (!response.body) {
+        throw new Error('No response body')
       }
 
-      setMessages(prev => [...prev, assistantMessage])
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
 
-      // Trigger action plan callback if one was created
-      if (chatData.actionPlan) {
-        onActionPlanCreated(chatData.actionPlan)
+      let currentMessage = {
+        role: 'assistant' as const,
+        content: '',
+        parts: [] as MessagePart[],
+        healthSearch: undefined as any,
+        actionPlan: undefined as any
+      }
+      let currentTextContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value)
+        const lines = chunk.split('\n')
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6))
+
+              switch (data.type) {
+                case 'text':
+                  // Accumulate text content
+                  currentTextContent += data.content
+                  currentMessage.content += data.content
+                  
+                  // Update the last text part or create a new one
+                  const lastPart = currentMessage.parts[currentMessage.parts.length - 1]
+                  if (lastPart && lastPart.type === 'text') {
+                    lastPart.content = currentTextContent
+                  } else {
+                    currentMessage.parts.push({
+                      type: 'text',
+                      content: currentTextContent
+                    })
+                  }
+                  
+                  setMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - 1
+                      ? { ...msg, content: currentMessage.content, parts: [...currentMessage.parts] }
+                      : msg
+                  ))
+                  break
+
+                case 'function_start':
+                  // Add function start indicator to text
+                  if (data.function === 'search_health_data') {
+                    currentTextContent += '\n\nSearching your health data...'
+                  } else if (data.function === 'create_action_plan') {
+                    currentTextContent += '\n\nCreating your action plan...'
+                  }
+                  currentMessage.content += (data.function === 'search_health_data' ? '\n\nSearching your health data...' : '\n\nCreating your action plan...')
+                  
+                  // Update or create text part
+                  const lastTextPart = currentMessage.parts[currentMessage.parts.length - 1]
+                  if (lastTextPart && lastTextPart.type === 'text') {
+                    lastTextPart.content = currentTextContent
+                  } else {
+                    currentMessage.parts.push({
+                      type: 'text',
+                      content: currentTextContent
+                    })
+                  }
+                  
+                  setMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - 1
+                      ? { ...msg, content: currentMessage.content, parts: [...currentMessage.parts] }
+                      : msg
+                  ))
+                  break
+
+                case 'health_search':
+                  // Generate summaries from health data
+                  const summaries = []
+                  if (data.data && data.data.data) {
+                    for (const [category, values] of Object.entries(data.data.data)) {
+                      if (values && typeof values === 'object') {
+                        const categoryName = category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
+                        const valueEntries = Object.entries(values)
+                        if (valueEntries.length > 0) {
+                          const summary = `${categoryName}: ${valueEntries.slice(0, 3).map(([key, val]) => 
+                            `${key} ${val}`
+                          ).join(', ')}`
+                          summaries.push(summary)
+                        }
+                      }
+                    }
+                  }
+                  
+                  const healthSearchData = {
+                    query: data.query,
+                    foundItems: data.foundItems,
+                    summaries: summaries
+                  }
+                  
+                  currentMessage.parts.push({
+                    type: 'health_search',
+                    healthSearch: healthSearchData
+                  })
+                  currentMessage.healthSearch = healthSearchData
+                  currentTextContent = '' // Reset text accumulator
+                  
+                  setMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - 1
+                      ? { 
+                          ...msg, 
+                          content: currentMessage.content,
+                          parts: [...currentMessage.parts],
+                          healthSearch: healthSearchData 
+                        }
+                      : msg
+                  ))
+                  break
+
+                case 'action_plan':
+                  // Add action plan as a new part
+                  const actionPlan = data.actionPlan
+                  const actionPlanData = {
+                    steps: typeof actionPlan === 'string' 
+                      ? actionPlan.split('\n').map((step: string) => ({
+                          text: step.replace(/^\d+\.\s*/, ''), // Remove numbering
+                          icon: '✓'
+                        }))
+                      : actionPlan.steps || actionPlan.split('\n').map((step: string) => ({
+                          text: step.replace(/^\d+\.\s*/, ''),
+                          icon: '✓'
+                        })),
+                    timestamp: new Date().toLocaleTimeString()
+                  }
+                  
+                  currentMessage.parts.push({
+                    type: 'action_plan',
+                    actionPlan: actionPlanData
+                  })
+                  currentMessage.actionPlan = actionPlanData
+                  currentTextContent = '' // Reset text accumulator
+                  
+                  setMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - 1
+                      ? { 
+                          ...msg, 
+                          content: currentMessage.content,
+                          parts: [...currentMessage.parts],
+                          actionPlan: actionPlanData 
+                        }
+                      : msg
+                  ))
+                  
+                  // Trigger action plan callback
+                  if (actionPlan) {
+                    onActionPlanCreated(typeof actionPlan === 'string' ? actionPlan : actionPlan.formatted)
+                  }
+                  break
+
+                case 'complete':
+                  // Streaming complete
+                  break
+
+                case 'error':
+                  throw new Error(data.message)
+              }
+            } catch (parseError) {
+              console.error('Error parsing stream data:', parseError)
+            }
+          }
+        }
       }
 
     } catch (error) {
@@ -142,26 +308,65 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
           messages.map((message, index) => (
             <div key={index} className={message.role === 'user' ? 'flex justify-end' : 'flex justify-start'}>
               <div className={`flex flex-col gap-4 ${message.role === 'user' ? 'ml-auto max-w-[308px]' : 'mr-auto'}`}>
-                {message.healthSearch && (
-                  <HealthSearchCard
-                    searchQuery={message.healthSearch.query}
-                    foundItems={message.healthSearch.foundItems}
-                    summaries={message.healthSearch.summaries}
-                  />
-                )}
-                <div
-                  className={`rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px] ${message.role === 'user'
-                      ? 'p-3 bg-khaki-150'
-                      : 'bg-transparent'
-                    }`}
-                >
-                  {message.content}
-                </div>
-                {message.actionPlan && (
-                  <ActionPlanCard
-                    steps={message.actionPlan.steps}
-                    timestamp={message.actionPlan.timestamp}
-                  />
+                {message.role === 'user' ? (
+                  // User messages - simple text only
+                  <div className="p-3 bg-khaki-150 rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px]">
+                    {message.content}
+                  </div>
+                ) : message.parts && message.parts.length > 0 ? (
+                  // Assistant messages with ordered parts - render in streaming order
+                  message.parts.map((part, partIndex) => {
+                    switch (part.type) {
+                      case 'text':
+                        return (
+                          <div
+                            key={partIndex}
+                            className="bg-transparent rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px]"
+                          >
+                            {part.content}
+                          </div>
+                        )
+                      case 'health_search':
+                        return part.healthSearch ? (
+                          <HealthSearchCard
+                            key={partIndex}
+                            searchQuery={part.healthSearch.query}
+                            foundItems={part.healthSearch.foundItems}
+                            summaries={part.healthSearch.summaries}
+                          />
+                        ) : null
+                      case 'action_plan':
+                        return part.actionPlan ? (
+                          <ActionPlanCard
+                            key={partIndex}
+                            steps={part.actionPlan.steps}
+                            timestamp={part.actionPlan.timestamp}
+                          />
+                        ) : null
+                      default:
+                        return null
+                    }
+                  })
+                ) : (
+                  // Fallback for messages without parts (backward compatibility)
+                  <>
+                    {message.healthSearch && (
+                      <HealthSearchCard
+                        searchQuery={message.healthSearch.query}
+                        foundItems={message.healthSearch.foundItems}
+                        summaries={message.healthSearch.summaries}
+                      />
+                    )}
+                    <div className="bg-transparent rounded-[16px] text-gray-800 letter-spacing-[-1%] line-height-[26px] font-size-[16px]">
+                      {message.content}
+                    </div>
+                    {message.actionPlan && (
+                      <ActionPlanCard
+                        steps={message.actionPlan.steps}
+                        timestamp={message.actionPlan.timestamp}
+                      />
+                    )}
+                  </>
                 )}
               </div>
             </div>
