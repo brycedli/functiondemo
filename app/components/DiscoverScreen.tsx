@@ -17,7 +17,7 @@ const mockContent = [
     type: 'image' as const,
     title: 'Huberman explains how modern diet and toxic exposures are wreaking havoc on hormones—for both men and women',
     category: 'News & Studies',
-    imageUrl: '/images/Huberman.png'
+    imageUrl: '/images/huberman.png'
   },
   {
     id: 2,
