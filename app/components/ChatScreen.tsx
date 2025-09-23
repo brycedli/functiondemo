@@ -3,9 +3,27 @@
 import { useState } from 'react'
 import ActionPlanCard from './ActionPlanCard'
 import HealthSearchCard from './HealthSearchCard'
+import AnalysisCard from './AnalysisCard'
+
+interface AnalysisStep {
+  id: string
+  title: string
+  icon: string
+  status: 'loading' | 'completed' | 'pending'
+  data?: {
+    title: string
+    items: Array<{
+      icon: string
+      title: string
+      count?: string
+      url?: string
+    }>
+    summary?: string
+  }
+}
 
 interface MessagePart {
-  type: 'text' | 'health_search' | 'action_plan'
+  type: 'text' | 'health_search' | 'action_plan' | 'analysis'
   content?: string
   healthSearch?: {
     query: string
@@ -18,6 +36,11 @@ interface MessagePart {
       icon?: string;
     }[]
     timestamp: string
+  }
+  analysis?: {
+    steps: AnalysisStep[]
+    response?: string
+    isStreaming?: boolean
   }
 }
 
@@ -37,6 +60,11 @@ interface Message {
     foundItems: string[]
     summaries?: string[]
   }
+  analysis?: {
+    steps: AnalysisStep[]
+    response?: string
+    isStreaming?: boolean
+  }
 }
 
 interface ChatScreenProps {
@@ -51,13 +79,17 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
+
   const sendMessage = async () => {
     if (!input.trim()) return
 
-    const userMessage: Message = { role: 'user', content: input }
-    setMessages(prev => [...prev, userMessage])
     const originalInput = input
     setInput('')
+    
+    // The AI will now automatically decide whether to use analysis based on the context
+
+    const userMessage: Message = { role: 'user', content: originalInput }
+    setMessages(prev => [...prev, userMessage])
     setIsLoading(true)
 
     try {
@@ -96,7 +128,8 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
         content: '',
         parts: [] as MessagePart[],
         healthSearch: undefined as any,
-        actionPlan: undefined as any
+        actionPlan: undefined as any,
+        analysis: undefined as any
       }
       let currentTextContent = ''
 
@@ -137,13 +170,7 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
                   break
 
                 case 'function_start':
-                  // Add function start indicator to text
-                  if (data.function === 'search_health_data') {
-                    currentTextContent += '\n\nSearching your health data...'
-                  } else if (data.function === 'create_action_plan') {
-                    currentTextContent += '\n\nCreating your action plan...'
-                  }
-                  currentMessage.content += (data.function === 'search_health_data' ? '\n\nSearching your health data...' : '\n\nCreating your action plan...')
+                  // Don't add any text for function calls - let the UI components handle it
                   
                   // Update or create text part
                   const lastTextPart = currentMessage.parts[currentMessage.parts.length - 1]
@@ -204,6 +231,89 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
                         }
                       : msg
                   ))
+                  break
+
+                case 'analysis_step_start':
+                  // Initialize or update analysis with new step
+                  if (!currentMessage.analysis) {
+                    currentMessage.analysis = {
+                      steps: [],
+                      isStreaming: true
+                    }
+                    currentMessage.parts.push({
+                      type: 'analysis',
+                      analysis: currentMessage.analysis
+                    })
+                  }
+                  
+                  // Add or update step as loading
+                  const existingStepIndex = currentMessage.analysis.steps.findIndex((s: AnalysisStep) => s.id === data.step.id)
+                  if (existingStepIndex >= 0) {
+                    currentMessage.analysis.steps[existingStepIndex] = data.step
+                  } else {
+                    currentMessage.analysis.steps.push(data.step)
+                  }
+                  
+                  setMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - 1
+                      ? { 
+                          ...msg, 
+                          analysis: { ...currentMessage.analysis },
+                          parts: currentMessage.parts.map(part => 
+                            part.type === 'analysis' 
+                              ? { ...part, analysis: { ...currentMessage.analysis } }
+                              : part
+                          )
+                        }
+                      : msg
+                  ))
+                  break
+
+                case 'analysis_step_complete':
+                  // Update step as completed
+                  if (currentMessage.analysis) {
+                    const stepIndex = currentMessage.analysis.steps.findIndex((s: AnalysisStep) => s.id === data.step.id)
+                    if (stepIndex >= 0) {
+                      currentMessage.analysis.steps[stepIndex] = data.step
+                    } else {
+                      currentMessage.analysis.steps.push(data.step)
+                    }
+                    
+                    setMessages(prev => prev.map((msg, index) =>
+                      index === prev.length - 1
+                        ? { 
+                            ...msg, 
+                            analysis: { ...currentMessage.analysis },
+                            parts: currentMessage.parts.map(part => 
+                              part.type === 'analysis' 
+                                ? { ...part, analysis: { ...currentMessage.analysis } }
+                                : part
+                            )
+                          }
+                        : msg
+                    ))
+                  }
+                  break
+
+                case 'analysis_complete':
+                  // Analysis completed - stop streaming indicator
+                  if (currentMessage.analysis) {
+                    currentMessage.analysis.isStreaming = false
+                    
+                    setMessages(prev => prev.map((msg, index) =>
+                      index === prev.length - 1
+                        ? { 
+                            ...msg, 
+                            analysis: { ...currentMessage.analysis },
+                            parts: currentMessage.parts.map(part => 
+                              part.type === 'analysis' 
+                                ? { ...part, analysis: { ...currentMessage.analysis } }
+                                : part
+                            )
+                          }
+                        : msg
+                    ))
+                  }
                   break
 
                 case 'action_plan':
@@ -343,6 +453,15 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
                             timestamp={part.actionPlan.timestamp}
                           />
                         ) : null
+                      case 'analysis':
+                        return part.analysis ? (
+                          <AnalysisCard
+                            key={partIndex}
+                            steps={part.analysis.steps}
+                            response={part.analysis.response}
+                            isStreaming={part.analysis.isStreaming}
+                          />
+                        ) : null
                       default:
                         return null
                     }
@@ -364,6 +483,13 @@ export default function ChatScreen({ messages, setMessages, onActionPlanCreated,
                       <ActionPlanCard
                         steps={message.actionPlan.steps}
                         timestamp={message.actionPlan.timestamp}
+                      />
+                    )}
+                    {message.analysis && (
+                      <AnalysisCard
+                        steps={message.analysis.steps}
+                        response={message.analysis.response}
+                        isStreaming={message.analysis.isStreaming}
                       />
                     )}
                   </>

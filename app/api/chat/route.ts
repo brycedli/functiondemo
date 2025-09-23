@@ -5,17 +5,17 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const SYSTEM_PROMPT = `You are a friendly, helpful AI assistant created by Function Health with access to health data and action planning capabilities. You can have normal conversations about anything and intelligently choose when to use your available functions. 
+const SYSTEM_PROMPT = `You are a friendly, helpful AI assistant created by Function Health with access to comprehensive health analysis and action planning capabilities. You can have normal conversations about anything and intelligently choose when to use your available functions. 
 
 Available functions:
-- search_health_data: Use when the user asks about their specific health data, test results, or biomarkers
+- analyze_comprehensive_health: Use for ANY health-related questions - this performs deep analysis across health data, journal entries, and research articles
 - create_action_plan: Use to give the user a 3-step daily action plan with appropriate icons:
   * exclamation-triangle: for warnings or important notices
   * bowl-food: for nutrition and food-related recommendations  
   * pills: for supplements or medication recommendations
   * vials: for lab testing or medical procedures
 
-IMPORTANT: You can make multiple function calls in sequence! First search health data, then analyze it and create an action plan. This is a multi-turn conversation.
+IMPORTANT: You can make multiple function calls in sequence! First analyze their health comprehensively, then create an action plan. This is a multi-turn conversation.
 
 CRITICAL RULE: When creating action plans, NEVER list the steps in your text response. Instead:
 - Say something like "Here's your personalized action plan:" or "I've created a plan for you:"
@@ -25,46 +25,25 @@ CRITICAL RULE: When creating action plans, NEVER list the steps in your text res
 
 Example flow:
 1. User asks about fatigue
-2. You call search_health_data to find relevant biomarkers  
-3. You analyze the results and explain what you found
+2. You call analyze_comprehensive_health to perform deep analysis across all data sources
+3. You explain what you found from the comprehensive analysis
 4. You say "Here's your action plan:" and call create_action_plan
 5. You provide any final thoughts (without repeating the steps)
 
-Be biased towards action– you are proactive agent that should search and create action plans 99% of the time save for banter or whatever. Do not ask the user for permission to use functions. NEVER use markdown, numbered lists, or bolding. Keep responses friendly and conversational.`
+Be biased towards action– you are proactive agent that should analyze and create action plans for ANY health-related question, no matter how simple. Always use comprehensive analysis instead of basic search. Do not ask the user for permission to use functions. NEVER use markdown, numbered lists, or bolding. Keep responses friendly and conversational.`
 
 const tools = [
   {
     type: "function" as const,
     function: {
-      name: "search_health_data",
-      description: "Search the user's health database for relevant information. Use to find out more about a user's health data, test results, or biomarkers.",
+      name: "analyze_comprehensive_health",
+      description: "Perform a comprehensive multi-step analysis of the user's health data, journal entries, and research articles. Use this for ANY health-related questions - from simple biomarker questions to complex health concerns.",
       parameters: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: `Search query for health data categories and biomarkers. These have been tested from a user's annual comprehensive Function Health blood panel. Available categories: 
-                - heart_cardiovascular: Cholesterol, lipoproteins, triglycerides, ApoB
-                - thyroid: TSH, T3, T4, thyroid antibodies
-                - cancer_detection: Multi-cancer screening tests
-                - autoimmunity: ANA, celiac, rheumatoid factor
-                - immune_regulation: CRP, white blood cell counts
-                - female_health: Hormones (AMH, estradiol, FSH, LH, prolactin)
-                - male_health: Testosterone, PSA, male hormones
-                - stress_aging: Cortisol, DHEA, biological age
-                - metabolic: Glucose, HbA1c, insulin, leptin
-                - nutrients: Vitamins, minerals, omega ratios, ferritin
-                - liver_function: ALT, AST, bilirubin, albumin
-                - kidneys: Creatinine, BUN, eGFR, microalbumin
-                - pancreas: Amylase, lipase
-                - heavy_metals: Lead, mercury, arsenic, aluminum
-                - electrolytes: Sodium, potassium, calcium, chloride
-                - blood: Complete blood count, RBC indices
-                - urine: Comprehensive urinalysis
-                - infections_std: STD panel, Lyme disease
-                - genetics_risk: ApoE genotype for Alzheimer's
-                - allergies_sensitivities: Food and environmental allergies
-            `
+            description: "The health concern, question, or topic to analyze comprehensively across all available data sources"
           }
         },
         required: ["query"]
@@ -111,9 +90,8 @@ export async function POST(request: NextRequest) {
     
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ 
-        response: "OpenAI API key not configured. Please add OPENAI_API_KEY to your environment variables.",
-        actionPlan: null 
-      })
+        error: "OpenAI API key not configured"
+      }, { status: 500 })
     }
 
     // Create a streaming response
@@ -199,43 +177,297 @@ export async function POST(request: NextRequest) {
               const functionName = toolCall.function.name
               const functionArgs = JSON.parse(toolCall.function.arguments)
 
-              if (functionName === "search_health_data") {
-                searchQuery = functionArgs.query
-                
+              if (functionName === "analyze_comprehensive_health") {
                 // Stream function call start
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({
                   type: 'function_start',
-                  function: 'search_health_data',
-                  query: searchQuery
+                  function: 'analyze_comprehensive_health',
+                  query: functionArgs.query
                 })}\n\n`))
                 
-                // Call our health search API
-                const healthResponse = await fetch(`${request.nextUrl.origin}/api/health-search`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ query: functionArgs.query })
-                })
-                healthData = await healthResponse.json()
-                
-                // Extract found items for display
-                if (healthData.data) {
-                  foundItems = Object.keys(healthData.data).map(category => 
-                    category.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())
-                  )
+                // Import the mock data generators and analysis logic
+                const generateMockJournalEntries = (query: string) => {
+                  const entries = [
+                    {
+                      icon: "utensils",
+                      title: "Mexican food",
+                      count: "3 Entries",
+                      details: ["Experienced bloating after tacos", "Stomach discomfort with cheese", "Similar reaction to corn tortillas"]
+                    },
+                    {
+                      icon: "glass-water",
+                      title: "Dairy products",
+                      count: "5 Entries", 
+                      details: ["Milk caused digestive issues", "Ice cream triggered symptoms", "Yogurt seemed okay"]
+                    },
+                    {
+                      icon: "wheat",
+                      title: "Gluten foods",
+                      count: "2 Entries",
+                      details: ["Bread caused fatigue", "Pasta led to brain fog"]
+                    }
+                  ]
+                  
+                  if (query.toLowerCase().includes('mexican') || query.toLowerCase().includes('dairy')) {
+                    return entries.slice(0, 2)
+                  }
+                  return entries.slice(0, 1)
                 }
 
-                // Stream health search results
+                const generateMockResearchArticles = (query: string) => {
+                  const articles = [
+                    {
+                      icon: "file",
+                      title: "The Future of Cow's Milk Allergy: Diagnostic Approaches",
+                      url: "https://example.com/milk-allergy"
+                    },
+                    {
+                      icon: "file", 
+                      title: "Dairy and Corn Cross-Reactivity in Adults",
+                      url: "https://example.com/dairy-corn"
+                    },
+                    {
+                      icon: "file",
+                      title: "Hidden Allergens in Processed Foods", 
+                      url: "https://example.com/hidden-allergens"
+                    },
+                    {
+                      icon: "file",
+                      title: "Lactose Intolerance vs Milk Protein Allergy",
+                      url: "https://example.com/lactose-vs-allergy"
+                    },
+                    {
+                      icon: "file",
+                      title: "Food Sensitivity Testing: IgG vs IgE Methods",
+                      url: "https://example.com/sensitivity-testing"
+                    },
+                    {
+                      icon: "file",
+                      title: "Gut Microbiome and Food Sensitivities",
+                      url: "https://example.com/microbiome-sensitivity"
+                    },
+                    {
+                      icon: "file",
+                      title: "Inflammatory Markers in Digestive Disorders",
+                      url: "https://example.com/inflammatory-markers"
+                    },
+                    {
+                      icon: "file",
+                      title: "Elimination Diets: Evidence-Based Protocols",
+                      url: "https://example.com/elimination-diets"
+                    },
+                    {
+                      icon: "file",
+                      title: "Histamine Intolerance and Food Reactions",
+                      url: "https://example.com/histamine-intolerance"
+                    },
+                    {
+                      icon: "file",
+                      title: "FODMAP Sensitivity and IBS Management",
+                      url: "https://example.com/fodmap-sensitivity"
+                    },
+                    {
+                      icon: "file",
+                      title: "Leaky Gut Syndrome: Current Research",
+                      url: "https://example.com/leaky-gut"
+                    },
+                    {
+                      icon: "file",
+                      title: "Gluten Sensitivity Beyond Celiac Disease",
+                      url: "https://example.com/gluten-sensitivity"
+                    },
+                    {
+                      icon: "file",
+                      title: "Nutritional Deficiencies in Food Allergies",
+                      url: "https://example.com/nutritional-deficiencies"
+                    },
+                    {
+                      icon: "file",
+                      title: "Stress and Digestive Health Interactions",
+                      url: "https://example.com/stress-digestion"
+                    },
+                    {
+                      icon: "file",
+                      title: "Probiotics in Allergy Management",
+                      url: "https://example.com/probiotics-allergies"
+                    }
+                  ]
+                  
+                  // Shuffle and return a random number of articles (1-4)
+                  const shuffled = articles.sort(() => 0.5 - Math.random())
+                  const count = Math.floor(Math.random() * 4) + 1 // Random number between 1-4
+                  return shuffled.slice(0, count)
+                }
+
+                const generateMockHealthData = (query: string) => {
+                  const healthData = {
+                    "inflammation": {
+                      "CRP": { value: 2.1, unit: "mg/L", range: "<3.0", status: "normal" },
+                      "ESR": { value: 15, unit: "mm/hr", range: "0-20", status: "normal" }
+                    },
+                    "digestive": {
+                      "IgA": { value: 180, unit: "mg/dL", range: "70-400", status: "normal" },
+                      "IgG": { value: 1200, unit: "mg/dL", range: "700-1600", status: "normal" }
+                    },
+                    "allergies": {
+                      "Total_IgE": { value: 45, unit: "IU/mL", range: "<100", status: "normal" },
+                      "Eosinophils": { value: 3.2, unit: "%", range: "1-4", status: "normal" }
+                    }
+                  }
+                  
+                  return healthData
+                }
+
+                // Step 1: Start analyzing health data
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({
-                  type: 'health_search',
-                  query: searchQuery,
-                  foundItems: foundItems,
-                  data: healthData
+                  type: 'analysis_step_start',
+                  step: {
+                    id: 'health_data',
+                    title: 'Analyzing your data',
+                    icon: 'loader',
+                    status: 'loading'
+                  }
+                })}\n\n`))
+                
+                // Simulate processing time
+                await new Promise(resolve => setTimeout(resolve, 1000))
+                
+                const healthData = generateMockHealthData(functionArgs.query)
+                
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_complete',
+                  step: {
+                    id: 'health_data',
+                    title: 'Analyzing your data',
+                    icon: 'check',
+                    status: 'completed',
+                    data: {
+                      title: 'Health Data',
+                      items: Object.entries(healthData).map(([category, tests]) => ({
+                        icon: 'vial',
+                        title: category.charAt(0).toUpperCase() + category.slice(1),
+                        count: `${Object.keys(tests).length} Tests`
+                      }))
+                    }
+                  }
+                })}\n\n`))
+                
+                // Step 2: Journal entries
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_start',
+                  step: {
+                    id: 'journal_entries',
+                    title: 'Searching journal entries',
+                    icon: 'book',
+                    status: 'loading'
+                  }
+                })}\n\n`))
+                
+                await new Promise(resolve => setTimeout(resolve, 800))
+                
+                const journalEntries = generateMockJournalEntries(functionArgs.query)
+                
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_complete',
+                  step: {
+                    id: 'journal_entries',
+                    title: 'Journal Entries',
+                    icon: 'book',
+                    status: 'completed',
+                    data: {
+                      title: 'Journal Entries',
+                      items: journalEntries
+                    }
+                  }
+                })}\n\n`))
+                
+                // Step 3: Research articles
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_start',
+                  step: {
+                    id: 'research',
+                    title: 'Researching',
+                    icon: 'search',
+                    status: 'loading'
+                  }
+                })}\n\n`))
+                
+                await new Promise(resolve => setTimeout(resolve, 1200))
+                
+                const researchArticles = generateMockResearchArticles(functionArgs.query)
+                
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_complete',
+                  step: {
+                    id: 'research',
+                    title: 'Researching',
+                    icon: 'search',
+                    status: 'completed',
+                    data: {
+                      title: 'Articles & Studies',
+                      items: researchArticles
+                    }
+                  }
+                })}\n\n`))
+                
+                // Step 4: Thinking phase
+                const thinkingTime = Math.floor(Math.random() * 4) + 2
+                
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_start',
+                  step: {
+                    id: 'thinking',
+                    title: 'Thinking...',
+                    icon: 'brain',
+                    status: 'loading'
+                  }
+                })}\n\n`))
+                
+                // Simulate thinking time
+                await new Promise(resolve => setTimeout(resolve, thinkingTime * 1000))
+                
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_step_complete',
+                  step: {
+                    id: 'thinking',
+                    title: `Thought for ${thinkingTime} seconds`,
+                    icon: 'check',
+                    status: 'completed',
+                    data: {
+                      summary: `${journalEntries.length} Journal Entries · ${researchArticles.length} Articles & Studies`
+                    }
+                  }
+                })}\n\n`))
+                
+                // Skip the expensive final analysis generation since we're not showing it to users
+                // The AI will provide its own conversational summary based on the structured data
+                const analysisResponse = `Comprehensive analysis completed. Found ${Object.keys(healthData).length} health data categories, ${journalEntries.length} relevant journal entries, and ${researchArticles.length} research articles. The AI will now provide a conversational summary of the key insights.`
+                
+                // Stream analysis completion (without the full response)
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: 'analysis_complete',
+                  metadata: {
+                    journalEntriesCount: journalEntries.length,
+                    researchArticlesCount: researchArticles.length,
+                    thinkingTime: thinkingTime
+                  }
                 })}\n\n`))
 
+                // Pass the analysis results back to the AI for it to summarize
                 messages.push({
                   role: "tool" as const,
                   tool_call_id: toolCall.id,
-                  content: JSON.stringify(healthData)
+                  content: `Analysis completed successfully. Key findings from comprehensive analysis:
+
+Health Data Analysis: Found ${Object.keys(healthData).length} categories of biomarkers including ${Object.keys(healthData).map(cat => cat.replace(/_/g, ' ')).join(', ')}.
+
+Journal Entries: Identified ${journalEntries.length} relevant entries: ${journalEntries.map(entry => entry.title).join(', ')}.
+
+Research Articles: Found ${researchArticles.length} relevant studies: ${researchArticles.map(article => article.title).join(', ')}.
+
+Detailed Analysis: ${analysisResponse}
+
+Please provide a concise, conversational summary of the key insights and what this means for the user.`
                 })
 
               } else if (functionName === "create_action_plan") {
@@ -306,8 +538,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Chat API error:', error)
     return NextResponse.json({ 
-      response: `Sorry, there was an error processing your request. ${error}`,
-      actionPlan: null 
+      error: "Failed to process chat request"
     }, { status: 500 })
   }
 }
